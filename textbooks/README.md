@@ -84,6 +84,7 @@ scripts/
   - `instruction_language` (授業使用言語)
   - `note` (スクレイピング時に付与された補足メモ)
   - `authors`, `publisher`, `publication_year`, `isbn`
+  - `academic_year`, `term`, `schedule`, `classroom`, `credits`, `instructors`
 
 ## 1.1 シラバス HTML の収集
 
@@ -144,6 +145,7 @@ scripts/
    ```
 3. `processed/` に以下が生成される
    - `textbooks_for_import.csv` … `textbooks`テーブル向けのインポート用 CSV。教科書・授業基本情報に加え、学部 (`faculty_names`)、タグ (`tag_names`)、著者・出版社などのメタデータも含みます
+     授業年度や学期、開講曜日・時限、教室、単位数、担当教員 (`instructors`) まで自動で取り込みます
    - `textbooks_for_import_minimal.csv` … クイック投入向けの 4 列版 (授業名 / 教科書名 / キャンパス / 学部)。同一授業のクラス違いは自動的にユニーク化されます
    - `textbook_relations.json` … 学部・学科・タグとの紐付けに加え、`course_code` / `course_category` / `instruction_language` / `note` / 著者・出版社などを保持
 
@@ -166,6 +168,12 @@ scripts/
        tag_names,
        course_code,
        course_category,
+      academic_year,
+      term,
+      schedule,
+      classroom,
+      credits,
+      instructors,
        instruction_language,
        note,
        authors,

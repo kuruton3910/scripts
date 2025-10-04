@@ -28,7 +28,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR = PROJECT_ROOT / "scripts" / "textbooks" / "raw"
@@ -54,6 +54,12 @@ OPTIONAL_COLUMNS = {
     "publisher",
     "publication_year",
     "isbn",
+    "academic_year",
+    "term",
+    "schedule",
+    "classroom",
+    "credits",
+    "instructors",
 }
 
 
@@ -72,6 +78,12 @@ class TextbookRow:
     publisher: str = ""
     publication_year: str = ""
     isbn: str = ""
+    academic_year: str = ""
+    term: str = ""
+    schedule: str = ""
+    classroom: str = ""
+    credits: str = ""
+    instructors: Optional[List[str]] = None
     faculties: List[str] = None
     departments: List[str] = None
     tags: List[str] = None
@@ -88,6 +100,12 @@ class TextbookRow:
             "tag_names": ",".join(self.tags or []),
             "course_code": self.course_code,
             "course_category": self.course_category,
+            "academic_year": self.academic_year,
+            "term": self.term,
+            "schedule": self.schedule,
+            "classroom": self.classroom,
+            "credits": self.credits,
+            "instructors": ",".join(self.instructors or []),
             "instruction_language": self.instruction_language,
             "note": self.note,
             "authors": self.authors,
@@ -104,6 +122,12 @@ class TextbookRow:
             "course_category": self.course_category,
             "instruction_language": self.instruction_language,
             "note": self.note,
+            "academic_year": self.academic_year,
+            "term": self.term,
+            "schedule": self.schedule,
+            "classroom": self.classroom,
+            "credits": self.credits,
+            "instructors": ",".join(self.instructors or []),
             "faculties": self.faculties or [],
             "departments": self.departments or [],
             "tags": self.tags or [],
@@ -143,6 +167,12 @@ def normalize_row(raw: Dict[str, str]) -> TextbookRow:
         publisher=normalize_value(raw.get("publisher", "")),
         publication_year=normalize_value(raw.get("publication_year", "")),
         isbn=normalize_value(raw.get("isbn", "")),
+        academic_year=normalize_value(raw.get("academic_year", "")),
+        term=normalize_value(raw.get("term", "")),
+        schedule=normalize_value(raw.get("schedule", "")),
+        classroom=normalize_value(raw.get("classroom", "")),
+        credits=normalize_value(raw.get("credits", "")),
+        instructors=split_multi_value(raw.get("instructors")),
         faculties=split_multi_value(raw.get("faculty_names")),
         departments=split_multi_value(raw.get("department_names")),
         tags=split_multi_value(raw.get("tag_names")),
@@ -195,6 +225,12 @@ def write_full_output(rows: List[TextbookRow]) -> None:
             "tag_names",
             "course_code",
             "course_category",
+            "academic_year",
+            "term",
+            "schedule",
+            "classroom",
+            "credits",
+            "instructors",
             "instruction_language",
             "note",
             "authors",

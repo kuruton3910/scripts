@@ -39,6 +39,12 @@ class TextbookRecord:
     tag_names: str = ""
     course_category: str = ""
     instruction_language: str = ""
+    academic_year: str = ""
+    term: str = ""
+    schedule: str = ""
+    classroom: str = ""
+    credits: str = ""
+    instructors: Optional[List[str]] = None
 
     def to_csv_row(self) -> List[str]:
         return [
@@ -50,6 +56,12 @@ class TextbookRecord:
             self.isbn,
             self.course_title,
             self.course_code,
+            self.academic_year,
+            self.term,
+            self.schedule,
+            self.classroom,
+            self.credits,
+            ",".join(self.instructors or []),
             ",".join(self.faculty_names),
             self.campus,
             self.tag_names,
@@ -57,6 +69,21 @@ class TextbookRecord:
             self.instruction_language,
             self.note,
         ]
+
+
+@dataclass
+class CourseMetadata:
+    course_code: str
+    course_title: str
+    academic_year: str
+    term: str
+    schedule: str
+    campus: str
+    classroom: str
+    faculties: List[str]
+    instructors: List[str]
+    credits: str
+    instruction_language: str
 
 
 CSV_HEADER = [
@@ -68,6 +95,12 @@ CSV_HEADER = [
     "isbn",
     "course_title",
     "course_code",
+    "academic_year",
+    "term",
+    "schedule",
+    "classroom",
+    "credits",
+    "instructors",
     "faculty_names",
     "campus",
     "tag_names",
@@ -235,7 +268,7 @@ def iter_html_files(target: Path) -> Iterable[Path]:
         yield target
 
 
-def extract_course_metadata(soup: "BeautifulSoup") -> tuple[str, str, str, List[str], str]:
+def extract_course_metadata(soup: "BeautifulSoup") -> CourseMetadata:
     course_table = soup.select_one("#table-syllabusitems table.stdlist")
     if not course_table:
         raise ValueError("Could not locate course metadata table in HTML page")
@@ -245,21 +278,43 @@ def extract_course_metadata(soup: "BeautifulSoup") -> tuple[str, str, str, List[
         raise ValueError("Course metadata table does not contain expected rows")
 
     cells = [cell.get_text(strip=True) for cell in rows[1].find_all("td")]
-    if len(cells) < 5:
+    if len(cells) < 1:
         raise ValueError("Course metadata row missing expected columns")
 
-    course_identifier = cells[0]
+    def get_cell(index: int) -> str:
+        if index < len(cells):
+            return cells[index]
+        return ""
+
+    course_identifier = get_cell(0)
     course_code, course_title = parse_course_identifier(course_identifier)
+    academic_year = get_cell(1)
+    term = get_cell(2)
+    schedule = get_cell(3)
+    faculties = normalize_name_list(get_cell(4))
+    instructors = normalize_instructor_list(get_cell(5))
+    credits = get_cell(6) if len(cells) > 6 else ""
 
     campus = extract_section_text(soup, "キャンパス")
-    faculties = normalize_name_list(cells[4])
-
+    classroom = extract_section_text(soup, "授業施設|教室|教場|教室名")
     instruction_language = extract_section_text(
         soup,
         "使用言語|Language of instruction|使用言語等|使用される言語",
     )
 
-    return course_code, course_title, campus, faculties, instruction_language
+    return CourseMetadata(
+        course_code=course_code,
+        course_title=course_title,
+        academic_year=academic_year,
+        term=term,
+        schedule=schedule,
+        campus=campus,
+        classroom=classroom,
+        faculties=faculties,
+        instructors=instructors,
+        credits=credits,
+        instruction_language=instruction_language,
+    )
 
 
 def parse_course_identifier(value: str) -> tuple[str, str]:
@@ -291,6 +346,13 @@ def normalize_name_list(value: str) -> List[str]:
         return []
     raw_items = re.split(r"[、,\s]+", value.strip())
     return [item for item in raw_items if item]
+
+
+def normalize_instructor_list(value: str) -> List[str]:
+    if not value:
+        return []
+    raw_items = re.split(r"[、,\/／]+", value.strip())
+    return [item.strip() for item in raw_items if item.strip()]
 
 
 def extract_textbooks(soup: "BeautifulSoup") -> List[dict[str, str]]:
@@ -361,25 +423,21 @@ def extract_textbooks(soup: "BeautifulSoup") -> List[dict[str, str]]:
 
 
 def build_records(soup: "BeautifulSoup") -> List[TextbookRecord]:
-    (
-        course_code,
-        course_title,
-        campus,
-        faculties,
-        instruction_language,
-    ) = extract_course_metadata(soup)
+    metadata = extract_course_metadata(soup)
     textbooks = extract_textbooks(soup)
 
-    resolved_course_title = course_title or (course_code if course_code else "")
+    resolved_course_title = metadata.course_title or (
+        metadata.course_code if metadata.course_code else ""
+    )
     if not resolved_course_title:
         resolved_course_title = "Untitled Course"
 
-    course_category = determine_course_category(faculties, resolved_course_title)
+    course_category = determine_course_category(metadata.faculties, resolved_course_title)
     base_tags = derive_tags(
         course_category,
-        faculties,
+        metadata.faculties,
         resolved_course_title,
-        instruction_language,
+        metadata.instruction_language,
     )
 
     records: List[TextbookRecord] = []
@@ -390,10 +448,10 @@ def build_records(soup: "BeautifulSoup") -> List[TextbookRecord]:
             record_tags.add("international-student")
         records.append(
             TextbookRecord(
-                course_code=course_code,
+                course_code=metadata.course_code,
                 course_title=resolved_course_title,
-                campus=campus,
-                faculty_names=faculties,
+                campus=metadata.campus,
+                faculty_names=metadata.faculties,
                 textbook_title=textbook["title"],
                 textbook_title_reading=textbook.get("reading", ""),
                 authors=textbook.get("authors", ""),
@@ -401,7 +459,13 @@ def build_records(soup: "BeautifulSoup") -> List[TextbookRecord]:
                 note=note,
                 tag_names=",".join(sorted(record_tags)),
                 course_category=course_category,
-                instruction_language=instruction_language,
+                instruction_language=metadata.instruction_language,
+                academic_year=metadata.academic_year,
+                term=metadata.term,
+                schedule=metadata.schedule,
+                classroom=metadata.classroom,
+                credits=metadata.credits,
+                instructors=metadata.instructors,
             )
         )
     return records
